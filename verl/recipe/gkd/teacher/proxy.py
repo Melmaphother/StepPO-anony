@@ -24,15 +24,15 @@ backend_listen_port = os.environ.get("PROXY_BACKEND_PORT")
 assert frontend_listen_port is not None, "PROXY_FRONTEND_PORT is not set"
 assert backend_listen_port is not None, "PROXY_BACKEND_PORT is not set"
 
-# 创建前端 ROUTER 套接字并绑定到客户端连接地址
+# Create the frontend ROUTER socket and bind it to the client connection address.
 frontend = context.socket(zmq.ROUTER)
 frontend.bind(f"tcp://*:{frontend_listen_port}")
 
-# 创建后端 DEALER 套接字并绑定到服务端连接地址
+# Create the backend DEALER socket and bind it to the server connection address.
 backend = context.socket(zmq.DEALER)
 backend.bind(f"tcp://*:{backend_listen_port}")
 
-# 创建 poller 用于同时监听多个套接字
+# Create a poller to listen to multiple sockets at the same time.
 poller = zmq.Poller()
 poller.register(frontend, zmq.POLLIN)
 poller.register(backend, zmq.POLLIN)
@@ -43,17 +43,17 @@ while True:
     socks = dict(poller.poll())
 
     if frontend in socks:
-        # 从 ROUTER 接收来自客户端的消息（multipart 消息）
+        # Receive multipart messages from clients through ROUTER.
         parts = frontend.recv_multipart()
-        # print(f"收到客户端消息: {parts}")
+        # print(f"Received client message: {parts}")
 
-        # 将完整的 multipart 消息转发给 DEALER
+        # Forward the full multipart message to DEALER.
         backend.send_multipart(parts)
 
     if backend in socks:
-        # 从 DEALER 接收来自服务端的回复
+        # Receive the server reply from DEALER.
         reply_parts = backend.recv_multipart()
-        # print(f"收到服务端回复: {reply_parts}")
+        # print(f"Received server reply: {reply_parts}")
 
-        # 将回复转发回原始客户端（假设第一个部分是客户端 ID）
+        # Forward the reply back to the original client, assuming the first part is the client ID.
         frontend.send_multipart(reply_parts)

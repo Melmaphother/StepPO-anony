@@ -34,28 +34,28 @@ from verl.utils.device import auto_set_device, is_cuda_available
 
 class ArftSearchPathPlugin(SearchPathPlugin):
     """
-    Hydra 搜索路径插件，允许 arft 的配置覆盖 verl 的默认配置。
+    Hydra search-path plugin that lets arft configs override verl defaults.
 
-    搜索顺序（优先级从高到低）：
-    1. arft/config - arft 自定义配置
-    2. verl/verl/trainer/config - verl 默认配置
+    Search order, from highest to lowest priority:
+    1. arft/config - arft custom configs
+    2. verl/verl/trainer/config - verl default configs
     """
 
     def manipulate_search_path(self, search_path):
-        # 获取项目根目录
+        # Get the project root.
         arft_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(arft_dir)
 
-        # 添加 verl 配置路径作为基础配置（低优先级）
+        # Add the verl config path as the low-priority base config.
         verl_config_path = os.path.join(project_root, "verl", "verl", "trainer", "config")
         search_path.append(provider="verl", path=f"file://{verl_config_path}")
 
-        # 添加 arft 配置路径作为覆盖配置（高优先级）
+        # Add the arft config path as the high-priority override config.
         arft_config_path = os.path.join(arft_dir, "config")
         search_path.append(provider="arft", path=f"file://{arft_config_path}")
 
 
-# 注册搜索路径插件
+# Register the search-path plugin.
 Plugins.instance().register(ArftSearchPathPlugin)
 
 

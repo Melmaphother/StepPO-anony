@@ -47,7 +47,7 @@ def main():
 
     print("worker started...", flush=True)
 
-    # TODO: 新增prefix_cache_hit监控
+    # TODO: Add prefix_cache_hit monitoring.
 
     while True:
         message = socket.recv()

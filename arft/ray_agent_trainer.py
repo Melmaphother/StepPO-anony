@@ -162,9 +162,10 @@ def compute_advantage(
     gigpo_similarity_thresh: float = 0.95,
     config: Optional[AlgoConfig] = None,
 ) -> DataProto:
-    # TODO: 重写所有 core_algos 中的 advantage 函数，适配新型的 agent flow 数据结构
-    # 多行 data 对应一条完整轨迹，通过 non_tensor_batch["trajectory_uids"] 来区分不同轨迹，每条轨迹包含多行 data。
-    # 通过 non_tensor_batch["step_indices"] 来区分同一条轨迹内的不同 step 的顺序。
+    # TODO: Rewrite all advantage functions in core_algos to support the new agent-flow data structure.
+    # Multiple data rows can correspond to one complete trajectory. Different trajectories are
+    # identified by non_tensor_batch["trajectory_uids"], and each trajectory contains multiple rows.
+    # non_tensor_batch["step_indices"] identifies the order of steps within the same trajectory.
     """Compute advantage estimates for policy optimization.
 
     Uses **only** ``arft.core_algos``: ``gae`` → ``compute_gae_advantage_return``,
@@ -397,7 +398,7 @@ class RayAgentTrainer(RayPPOTrainer):
             self.use_critic = True
 
     def _dump_generations(self, inputs, outputs, gts, scores, reward_extra_infos_dict, dump_path):
-        # TODO: 以轨迹为单位，将轨迹内的所有 step 的数据都 dump 出来。
+        # TODO: Dump all step data within each trajectory as the logging unit.
         """Dump rollout/validation samples as JSONL."""
         os.makedirs(dump_path, exist_ok=True)
         filename = os.path.join(dump_path, f"{self.global_steps}.jsonl")
@@ -463,7 +464,7 @@ class RayAgentTrainer(RayPPOTrainer):
             )
 
     def _maybe_log_val_generations(self, inputs, outputs, scores):
-        # TODO: 以轨迹为单位
+        # TODO: Use trajectories as the logging unit.
         """Log a table of validation samples to the configured logger (wandb or swanlab)"""
 
         generations_to_log = self.config.trainer.log_val_generations
@@ -1004,7 +1005,7 @@ class RayAgentTrainer(RayPPOTrainer):
                         # Compute rollout correction: IS weights, rejection sampling, and metrics
                         # Only runs in decoupled mode (computes once per batch using stable π_old)
                         # In bypass mode, this is skipped - actor computes metrics from evolving π_θ vs π_rollout
-                        # TODO: is_metrics 修正，如何过滤掉 pad 的 step？
+                        # TODO: Fix is_metrics handling and filter out padded steps.
                         if (
                             rollout_corr_config is not None
                             and "rollout_log_probs" in batch.batch

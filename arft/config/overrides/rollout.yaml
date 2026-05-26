@@ -1,13 +1,13 @@
-# 只覆盖需要修改的配置项 - agent 部分
-# 其他配置从 verl 的默认配置继承
+# Only override the necessary agent-related config items.
+# Other settings are inherited from verl defaults.
 
-# 使用 async 模式
+# Use async mode.
 mode: async
 
-# [Experimental] agent flow based rollout configs (覆盖 verl 的 AgentLoopConfig)
+# [Experimental] agent-flow based rollout configs that override verl's AgentLoopConfig.
 agent:
 
-  # 使用 arft 的 AgentFlowConfig 替代 verl 的 AgentLoopConfig
+  # Use arft's AgentFlowConfig instead of verl's AgentLoopConfig.
   _target_: arft.config.AgentFlowConfig
 
   # Number of agent flow workers
@@ -30,4 +30,3 @@ agent:
 
     # Class name of the custom async server class (e.g. AsyncvLLMServer)
     name: null
-

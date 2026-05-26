@@ -84,7 +84,7 @@ class TeacherClient:
         socket = self.context.socket(zmq.REQ)
         socket.connect(f"tcp://{self.server_ip}:{self.server_port}")
         socket.setsockopt(zmq.LINGER, 0)
-        socket.setsockopt(zmq.RCVTIMEO, 600000)  # 接收超时 30 分钟
+        socket.setsockopt(zmq.RCVTIMEO, 600000)  # Receive timeout: 30 minutes.
 
         while True:
             futures = []

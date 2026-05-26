@@ -98,9 +98,9 @@ class _VocabParallelKLDivergence(torch.autograd.Function):
         vocab_parallel_source_topk_logps = torch.log(1e-20 + vocab_parallel_source_topk_probs)
         vocab_parallel_source_topk_logps[~topk_indices_in_vocab_mask] = 0
 
-        # KL(P||Q)会强制 Q 覆盖 P 的所有模式（避免漏峰）
-        # KL(Q||P)会鼓励 Q 聚焦于 P 的一个模式（避免多峰)
-        # 这里使用 KL(P||Q)，其中P为target，Q为source，鼓励source学习target的所有模式
+        # KL(P||Q) forces Q to cover all modes of P and avoids missing modes.
+        # KL(Q||P) encourages Q to focus on one mode of P and avoids multiple modes.
+        # Use KL(P||Q), where P is the target and Q is the source, to encourage source to learn all target modes.
 
         per_token_kl_loss = torch.sum(
             vocab_parallel_target_topk_probs * (vocab_parallel_target_topk_logps - vocab_parallel_source_topk_logps),
@@ -130,7 +130,8 @@ class _VocabParallelKLDivergence(torch.autograd.Function):
             ctx.saved_tensors
         )
         # source_probs, target_probs = ctx.saved_tensors
-        # KL 散度对 vocab_parallel_logits 的梯度为: (student_softmax_logits - valid_target_logits)
+        # The KL-divergence gradient for vocab_parallel_logits is:
+        # student_softmax_logits - valid_target_logits.
         grad_input = vocab_parallel_source_probs  # shape: [seq_len, batch_size, vocab_parition_size]
 
         topk = vocab_parallel_target_topk_indices.size(-1)
@@ -142,7 +143,7 @@ class _VocabParallelKLDivergence(torch.autograd.Function):
 
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
 
-        return grad_input, None, None  # 返回给第一个输入 vocab_parallel_logits 的梯度
+        return grad_input, None, None  # Return the gradient for the first input, vocab_parallel_logits.
 
 
 def vocab_parallel_kl_divergence(vocab_parallel_logits, target_topk_logps, target_topk_indices):
