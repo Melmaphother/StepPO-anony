@@ -43,12 +43,6 @@ StepPO maintains step-native transition records throughout rollout and training.
 
 - **Step-Level Credit Assignment** — StepPO estimates values at step boundaries, computes GAE over the step timeline, and broadcasts the resulting step advantage to the valid generated tokens of the same action. This keeps policy gradients compatible with token-level training while assigning credit at the agent-decision level.
 
-<div align="center">
-<img src="assets/rep.png" width="90%"/>
-<p><em>Figure 2: Step-native trajectory representation for multi-turn agent interaction.</em></p>
-</div>
-
-
 ## 🚀 Quick Start
 
 This guide provides step-by-step instructions to set up the environment, prepare task data, and run StepPO training.
