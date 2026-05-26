@@ -1,203 +1,219 @@
-# StepPO: Step-Aligned Policy Optimization for Agentic Reinforcement Learning
-
-> 🧠 StepPO advocates a **step-level** perspective on Agentic RL: the conventional token-level MDP should be advanced to a **step-level MDP**, and the *step*, rather than the *token*, should be regarded as the proper action representation for LLM agents.
-> 
-> ⚙️ We propose **step-level credit assignment** as the natural optimization counterpart, aligning policy optimization and reward propagation with the granularity of agent decisions.
-
-📄 **Paper**: available after anonymous review.
-
-## 🚀 From Token-Level to Step-Level Agentic RL
-
-Agentic RL is emerging as a central post-training paradigm for empowering LLMs with agentic capabilities such as decision making, tool use, and environment interaction. However, the token-centric modeling and optimization paradigm inherited from RLHF/RLVR is becoming increasingly inadequate for multi-turn interactive settings.
-
-> **Token-Level MDP (PPO, Reinforce++):**
-> Each token is treated as an atomic action. Credit assignment operates at token granularity — too local and noisy for long-horizon agent decisions.
->
-> **Trajectory-Level Credit (GRPO, RLOO):**
-> The entire trajectory receives a single reward signal. Credit assignment is too coarse to identify the contribution of intermediate decisions.
->
-> **Step-Level MDP + Step-Level Credit (StepPO):**
-> Each complete interaction round forms the proper transition unit. Credit assignment aligns with the step — the natural granularity of agent behavior.
-
-<!-- IMAGE PLACEHOLDER: Figure 1 — Comparison between token-level MDP and step-level MDP formulation -->
-
-<!-- Suggested image: Figure 1 from the paper -->
-
-<!-- Path suggestion: assets/token_vs_step_mdp.png -->
-
-| Method | MDP Formulation | Credit Assignment |
-|---|---|---|
-| PPO | Token-level | Token-level |
-| Reinforce++ | Token-level | Token-level |
-| GRPO | Token-level | Trajectory-level |
-| RLOO | Token-level | Trajectory-level |
-| LightningRL | Step-level | Trajectory-level |
-| **StepPO** | **Step-level** | **Step-level** |
+<div align="center">
+  <h1>
+        🧭 StepPO: Step-Aligned Policy Optimization for <br> Agentic Reinforcement Learning
+  </h1>
+</div>
 
 ---
 
-## 🧠 Step-Level MDP Formulation
+## 📖 Abstract
 
-![MDP](assets/mdp.png)
+Agentic reinforcement learning (RL) is emerging as a critical post-training paradigm for improving LLM agent capabilities. Existing RL algorithms for LLMs largely follow the token-centric paradigm inherited from RLHF and RLVR, where tokens serve as the basic units for modeling and optimization. However, this paradigm introduces a granularity mismatch in agentic RL: LLM agents make environment-facing decisions at the step level, while standard RL objectives optimize token-level predictions or assign trajectory-level credit. In this work, we propose **StepPO**, a step-centric paradigm for agentic RL via step-aligned policy optimization. StepPO reformulates agentic RL from a token-level Markov Decision Process (MDP) into a step-level MDP, where interaction steps serve as the basic trajectory representation. It further performs step-level credit assignment, aligning value estimation and policy optimization with complete agent actions. Experiments across multi-hop QA, academic paper search, ALFWorld, and WebShop show that StepPO consistently outperforms representative RL baselines. Further analyses reveal that step-centric optimization improves decision quality, stabilizes training, and better matches long-horizon tool-augmented agent behavior. Our code is available after anonymous review.
 
-In StepPO, we redefine the MDP for LLM agents at the granularity of interaction steps rather than individual tokens:
 
-### Core Components
+## ✨ Motivation
 
-![rep](assets/rep.png)
+<img src="assets/mdp.png" align="left" width="55%"/>
 
-* **State.**
-  The prompt and environment observation at the start of an interaction turn.
+**StepPO** starts from a simple observation: LLM agents do not act one token at a time. They observe the environment, generate a complete response or tool call, receive feedback, and then move to the next interaction state.
 
-* **Action.**
-  The *entire model response* generated in one turn (thought + tool call), rather than a single token.
+Existing agentic RL methods often suffer from a granularity mismatch:
 
-* **Transition.**
-  The environment's response (tool output, observation update) to the agent's complete action.
+- 🎯 **Token-level MDPs** model each token as an action, although individual tokens are rarely meaningful environment decisions.
+- 📦 **Trajectory-level credit** assigns one coarse reward to an entire rollout, making it hard to locate useful or harmful intermediate steps.
+- 🔁 **Long-horizon interaction** requires credit to flow across complete tool-use and environment-action steps, not across surface text tokens alone.
 
-* **Reward.**
-  Delayed and sparse reward signals that must be properly propagated back to intermediate steps via step-level credit assignment.
+StepPO aligns the MDP formulation, trajectory representation, and credit assignment unit around the **interaction step**, the natural decision unit of LLM agents.
 
-This formulation captures the natural decision-making granularity of LLM agents — each step involves reading observations, reasoning, and producing a complete action, followed by an environment transition that yields new information.
+<br clear="left"/>
 
----
 
-## ⚙️ Step-Level Credit Assignment
+## 🌟 Framework
 
-Training multi-turn agents with standard RL methods faces a fundamental **granularity mismatch**:
+<div align="center">
+<img src="assets/credit.png" width="95%"/>
+<p><em>Figure 1: Step-level credit assignment in StepPO.</em></p>
+</div>
 
-* **Token-level PPO**
-  ❌ Too local — individual tokens are not meaningful decision units for tool use and environment interaction
-* **Trajectory-level GRPO**
-  ❌ Too coarse — cannot distinguish which intermediate steps contributed to the outcome
+StepPO maintains step-native transition records throughout rollout and training. Each record contains the current state, a complete generated action, reward, and the next state induced by environmental feedback. Three core designs make the step-level view operational:
 
-### ✨ Our Solution: Step-Level GAE
+- **Step-Level MDP Formulation** — Agent execution is represented as a sequence of interaction steps. At each step, the policy observes the current state, emits a complete action such as a tool call, search query, answer, or text-world command, receives reward, and transitions to the next state.
 
-StepPO implements **step-level Generalized Advantage Estimation (GAE)**, which aligns credit assignment exactly with the agent's interaction granularity:
+- **Step-Level Trajectory Representation** — Rollouts are stored as step-native records instead of only one flattened token sequence. This preserves step boundaries while retaining token-level likelihoods needed by standard LLM RL trainers.
 
-![credit](assets/credit.png)
+- **Step-Level Credit Assignment** — StepPO estimates values at step boundaries, computes GAE over the step timeline, and broadcasts the resulting step advantage to the valid generated tokens of the same action. This keeps policy gradients compatible with token-level training while assigning credit at the agent-decision level.
 
-**Key properties of step-level credit assignment:**
+<div align="center">
+<img src="assets/rep.png" width="90%"/>
+<p><em>Figure 2: Step-native trajectory representation for multi-turn agent interaction.</em></p>
+</div>
 
-* Treats each *complete agent response* (thought + action) as an atomic action unit
-* Performs **step-level advantage estimation** — rewards are summed within each step, then GAE propagates credit across steps
-* The critic estimates **state values at step boundaries** (before the first response token of each step)
-* Advantages are whitened at step level, then broadcast to token level for policy gradient
-* Significantly improves **training stability and credit accuracy** over token-level alternatives
 
----
+## 🚀 Quick Start
 
-## 🏗️ Systems Design
+This guide provides step-by-step instructions to set up the environment, prepare task data, and run StepPO training.
 
-Step-level Agentic RL places unique demands on training infrastructure. StepPO is built on top of **veRL** and addresses these challenges through:
+### 1. Environment Setup
 
-![train](assets/train.png)
+We recommend using Conda with Python 3.10+.
 
-* **Token-space consistency**: Rollout and training operate on the same tokenized data, avoiding retokenization drift that can break step-aligned learning
-* **Trajectory-native data management**: Each trajectory is composed of multiple steps, tracked via `trajectory_uids` and `step_indices` for proper credit assignment
-* **Asynchronous agent rollout**: Agent-environment interaction is managed via `AgentFlowManager`, supporting heterogeneous environments with variable step counts
-* **Flexible advantage estimation**: Three modes supported — `gae` (step-level), `token_gae` (token-level), and `grpo` (trajectory-level) — configurable via Hydra
+```bash
+git clone <repo_url>
 
----
+# Navigate into the cloned repository directory.
+cd StepPO
 
-## 🌐 Supported Environments
+# Create and activate a conda environment.
+conda create -n steppo python=3.10
+conda activate steppo
 
-StepPO provides recipe-based support for diverse agent benchmarks:
+# Install the veRL backend and project dependencies.
+pip install -e verl
+pip install -r recipe/hotpotqa/requirements.txt
+```
 
-| Environment | Description | Agent Flow |
-|---|---|---|
-| **WebShop** | E-commerce web navigation and product search | `WebShopAgentFlow` |
-| **ALFWorld** | Embodied household task execution in TextWorld | `AlfworldAgentFlow` |
-| **HotpotQA** | Multi-hop question answering with retrieval | `HotpotQAAgentFlow` |
-| **Paper Search** | Autonomous academic paper discovery | `PaperSearchAgentFlow` |
+Depending on the target environment, you may also need to install task-specific dependencies for ALFWorld, WebShop, or Paper Search.
 
-Each recipe includes: agent flow definition, reward function, prompt templates, data preparation scripts, and Hydra configuration.
+### 2. Data Preparation
 
----
+Prepare the benchmark data before training. For HotpotQA:
 
-## 📊 Experimental Results
+```bash
+python recipe/hotpotqa/prepare_hotpotqa_arft.py \
+  --output_dir data/corpus/hotpotqa \
+  --corpus_output_path data/corpus/hotpotqa_corpus/hpqa_corpus.jsonl
+```
 
-Preliminary experiments on HotpotQA demonstrate that step-level credit assignment consistently outperforms token-level PPO in multi-step agent settings.
+Other environments provide their own preparation scripts under `recipe/`.
 
-<!-- IMAGE PLACEHOLDER: Main experimental results table/figure -->
+### 3. Run StepPO
 
-<!-- Suggested image: Table or figure showing HotpotQA results -->
-
-<!-- Path suggestion: assets/main_results.png -->
-
-### Key Findings
-
-* **Step-level GAE** consistently outperforms **token-level GAE** across different model sizes
-* Step-aligned credit assignment better captures the contribution of intermediate agent decisions
-* Aligning the optimization granularity with the interaction granularity leads to more stable training and improved sample efficiency
-
-<!-- IMAGE PLACEHOLDER: Training curves or ablation results -->
-
-<!-- Suggested image: Training curves comparing step-level vs token-level -->
-
-<!-- Path suggestion: assets/training_curves.png -->
-
----
-
-## 🛠️ Quick Start
-
-### Training
-
-Training is launched via `arft.main_agent_ppo` with Hydra configuration. Example scripts are provided in `examples/`:
+Launch step-level advantage training with the provided scripts:
 
 ```bash
 # Step-level advantage (StepPO)
 bash examples/run_hotpotqa_step_adv.sh
 
-# Token-level advantage (baseline)
+# Token-level advantage baseline
 bash examples/run_hotpotqa_token_adv.sh
+
+# Trajectory-level GRPO baseline
+bash examples/run_hotpotqa_grpo.sh
 ```
 
-Available training configurations:
+The same script pattern is available for WebShop, ALFWorld, and Paper Search:
 
-| Script | Task | Advantage | GPUs |
-|---|---|---|---|
-| `run_hotpotqa_step_adv_mlflow_4gpu.sh` | HotpotQA | Step GAE | 4 |
-| `run_hotpotqa_token_adv_mlflow_4gpu.sh` | HotpotQA | Token GAE | 4 |
-| `run_webshop_step_adv_mlflow_4gpu.sh` | WebShop | Step GAE | 4 |
-| `run_webshop_token_adv_mlflow_4gpu.sh` | WebShop | Token GAE | 4 |
-| `run_alfworld_step_adv_mlflow_4gpu.sh` | ALFWorld | Step GAE | 4 |
-| `run_alfworld_token_adv_mlflow_4gpu.sh` | ALFWorld | Token GAE | 4 |
-| `run_papersearch_step_adv_mlflow_4gpu.sh` | Paper Search | Step GAE | 4 |
-| `run_papersearch_token_adv_mlflow_4gpu.sh` | Paper Search | Token GAE | 4 |
+```bash
+bash examples/run_webshop_step_adv.sh
+bash examples/run_alfworld_step_adv.sh
+bash examples/run_papersearch_step_adv.sh
+```
 
-### Key Configuration
+### 4. Key Configuration
 
-StepPO involves two core configuration axes — **advantage estimator** and **policy loss**:
+StepPO is controlled by two main configuration axes: the advantage estimator and the actor policy loss.
 
 ```bash
 # Step-level GAE (StepPO)
 algorithm.adv_estimator=gae
 actor_rollout_ref.actor.policy_loss.loss_mode=gspo
 
-# Token-level GAE (baseline)
+# Token-level GAE baseline
 algorithm.adv_estimator=token_gae
-actor_rollout_ref.actor.policy_loss.loss_mode=gspo
 
-# Trajectory-level GRPO
+# Trajectory-level GRPO baseline
 algorithm.adv_estimator=grpo
 ```
 
 | Parameter | Description | Options |
 |---|---|---|
-| `algorithm.adv_estimator` | Credit assignment granularity | `gae` (step), `token_gae` (token), `grpo` (trajectory) |
-| `actor_rollout_ref.actor.policy_loss.loss_mode` | Policy gradient loss function | `gspo`, `ppo`, `reinforce`, etc. |
+| `algorithm.adv_estimator` | Credit-assignment granularity | `gae` (step), `token_gae` (token), `grpo` (trajectory) |
+| `actor_rollout_ref.actor.policy_loss.loss_mode` | Policy optimization objective | `gspo`, `ppo`, `reinforce`, etc. |
+| `actor_rollout_ref.rollout.agent.default_agent_flow` | Task-specific agent flow | `hotpotqa_agent`, `webshop_agent`, `alfworld_agent`, `paper_search_agent` |
 
----
+
+## 💪 Performance
+
+We evaluate StepPO across multi-hop QA, academic paper search, ALFWorld, and WebShop with Qwen3-1.7B and Qwen3-4B-Instruct-2507 backbones. StepPO obtains the best result on every reported metric.
+
+| Backbone | Method | HotpotQA | 2Wiki | MuSiQue | Paper F1@All | ALFWorld Seen | ALFWorld Unseen | WebShop Score | WebShop Succ. |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Qwen3-1.7B | PPO | 38.00 | 50.12 | 16.55 | 0.284 | 67.14 | 69.40 | 59.12 | 34.60 |
+| Qwen3-1.7B | GRPO | 36.76 | 48.30 | 16.88 | 0.275 | 73.57 | 75.37 | 63.15 | 36.20 |
+| Qwen3-1.7B | GiGPO | 40.85 | 52.43 | 18.37 | 0.298 | 70.00 | 69.40 | 66.92 | 41.80 |
+| Qwen3-1.7B | **StepPO** | **44.86** | **56.17** | **21.56** | **0.314** | **75.00** | **79.10** | **69.88** | **45.00** |
+| Qwen3-4B | PPO | 56.75 | 58.92 | 19.82 | 0.303 | 76.43 | 72.39 | 70.18 | 46.00 |
+| Qwen3-4B | GRPO | 56.61 | 63.33 | 25.07 | 0.294 | 81.43 | 74.63 | 65.83 | 44.20 |
+| Qwen3-4B | GiGPO | 58.14 | 61.27 | 23.50 | 0.306 | 88.57 | 79.10 | 67.13 | 50.00 |
+| Qwen3-4B | **StepPO** | **63.78** | **66.16** | **29.87** | **0.327** | **92.14** | **85.82** | **77.52** | **57.80** |
+
+StepPO improves over token-level RL methods and over step-MDP methods that still use trajectory-level credit, suggesting that both the MDP formulation and credit assignment should respect environment-facing interaction steps.
+
+
+## 📊 Analysis
+
+<div align="center">
+<img src="assets/ablation.png" width="75%"/>
+<p><em>Figure 3: Ablation study over StepPO components.</em></p>
+</div>
+
+The ablation study verifies that both step-level GAE and step-level importance sampling contribute to performance. Removing either component degrades results, while removing both yields the weakest variant.
+
+<div align="center">
+<img src="assets/training_curves.png" width="100%"/>
+<p><em>Figure 4: Training dynamics on HotpotQA and ALFWorld.</em></p>
+</div>
+
+StepPO achieves stronger reward curves and more stable critic loss than PPO, GRPO, and GiGPO, indicating that step-centric optimization improves both policy quality and value estimation.
+
+<div align="center">
+<img src="assets/step_compare.png" width="78%"/>
+<p><em>Figure 5: Step-wise difficulty analysis on ALFWorld.</em></p>
+</div>
+
+As task horizons grow, StepPO maintains higher success rates and a smaller gap between agent steps and human-annotated golden steps, showing better control over long-horizon interaction.
+
+
+## 📋 Example Output
+
+<div align="center">
+<img src="assets/case.png" width="95%"/>
+<p><em>Figure 6: Paper Search case study with step-level value and advantage.</em></p>
+</div>
+
+The case study shows how StepPO assigns credit to specific interaction decisions. Effective search and citation-expansion steps receive positive advantages, while low-yield steps receive smaller or negative advantages. This supports the central claim that step-level credit better matches multi-turn tool-augmented agent behavior.
+
+
+## 🌐 Supported Environments
+
+| Environment | Description | Agent Flow |
+|---|---|---|
+| **HotpotQA** | Multi-hop question answering with Wikipedia retrieval | `HotpotQAAgentFlow` |
+| **Paper Search** | Academic paper discovery with search and citation expansion | `PaperSearchAgentFlow` |
+| **ALFWorld** | Text-world embodied household task execution | `AlfworldAgentFlow` |
+| **WebShop** | E-commerce web navigation and product search | `WebShopAgentFlow` |
+
+Each recipe includes an agent flow, reward function, prompt template, data preparation utilities, and Hydra configuration.
+
 
 ## 🧩 Key Contributions
 
-* 🧠 **Step-Level MDP**: Advancing from token-level to step-level MDP formulation for Agentic RL, where the step is the proper action representation
-* ⚙️ **Step-Level Credit Assignment**: Aligning policy optimization and reward propagation with the natural granularity of agent decisions
-* 🏗️ **Systems Design**: Addressing token-space consistency, trajectory-native data management, and asynchronous agent rollout
-* 📈 **Empirical Evidence**: Consistent gains of step-level over token-level optimization across multi-step agent benchmarks
+- **Step-Level MDP** — Reformulates agentic RL around complete environment-facing interaction steps instead of individual generated tokens.
+- **Step-Level Credit Assignment** — Computes advantages over the step timeline and broadcasts each step advantage to the corresponding generated action tokens.
+- **Step-Aligned Policy Optimization** — Uses length-normalized step-level importance ratios to stabilize PPO-style updates for multi-token actions.
+- **Broad Agentic Evaluation** — Demonstrates consistent gains across QA, retrieval, embodied text-world interaction, and web navigation tasks.
 
----
+
+## 🙏 Acknowledgement
+
+This repository builds on strong open-source infrastructure and benchmark resources. We appreciate the following projects:
+
+- [veRL](https://github.com/volcengine/verl) - Reinforcement learning backend for LLM training
+- [Agent-R1](https://github.com/0russwest0/Agent-R1) - Agent training framework and design inspiration
+- [HotpotQA](https://hotpotqa.github.io/) - Multi-hop QA benchmark
+- [ALFWorld](https://github.com/alfworld/alfworld) - Text-world embodied agent benchmark
+- [WebShop](https://github.com/princeton-nlp/WebShop) - Web-based shopping agent benchmark
+
 
 ## 📌 Citation
 
