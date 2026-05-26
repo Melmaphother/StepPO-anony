@@ -283,7 +283,7 @@ class AgentFlowBase(ABC):
         # - position_ids: sequential positions for tokens, starting at 0
         #   e.g., [0,0,0,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,0,0,0,0]
 
-        # TODO(wuxibin): remove padding and use tensordict.
+        # TODO: remove padding and use tensordict.
         self.tokenizer.padding_side = "left"
         prompt_output = self.tokenizer.pad(
             {"input_ids": step.prompt_ids},

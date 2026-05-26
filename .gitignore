@@ -8,7 +8,7 @@
 /.venv/
 /outputs/
 /logs/
-paperscout/
+local_paper_search/
 .codex
 Agent-R1-lagacy/
 __pycache__/

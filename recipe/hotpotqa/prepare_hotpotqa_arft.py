@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2025 PaperScout / recipe contributors
+# Copyright 2025 recipe contributors
 #
 # Download HotpotQA (distractor setting) and export:
 # 1) train.parquet / validation.parquet for verl/arft RLHFDataset (prompt + reward_model + data_source)
